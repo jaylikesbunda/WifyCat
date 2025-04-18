@@ -15,12 +15,12 @@ except ImportError:
 import zipfile
 import io
 try:
-    from PySide6.QtWidgets import QApplication, QWizard, QWizardPage, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QFileDialog, QTextEdit, QComboBox, QMessageBox, QProgressBar
+    from PySide6.QtWidgets import QApplication, QWizard, QWizardPage, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QFileDialog, QTextEdit, QComboBox, QMessageBox, QProgressBar, QCheckBox
     from PySide6.QtGui import QPalette, QColor, QIcon
     from PySide6.QtCore import Qt, QProcess, QTimer
 except ImportError:
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'PySide6'])
-    from PySide6.QtWidgets import QApplication, QWizard, QWizardPage, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QFileDialog, QTextEdit, QComboBox, QMessageBox, QProgressBar
+    from PySide6.QtWidgets import QApplication, QWizard, QWizardPage, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QFileDialog, QTextEdit, QComboBox, QMessageBox, QProgressBar, QCheckBox
     from PySide6.QtGui import QPalette, QColor, QIcon
     from PySide6.QtCore import Qt, QProcess, QTimer
 
@@ -39,6 +39,7 @@ class HashcatWizard(QWizard):
         self.addPage(self.create_wordlist_page())
         self.addPage(self.create_rule_page())
         self.addPage(self.create_output_page())
+        self.addPage(self.create_settings_page())
         self.addPage(self.create_summary_page())
         self.currentIdChanged.connect(self.on_page_changed)
 
@@ -109,6 +110,35 @@ class HashcatWizard(QWizard):
         page.setLayout(layout)
         return page
 
+    def create_settings_page(self):
+        page = QWizardPage()
+        page.setTitle('Attack Settings')
+        layout = QVBoxLayout()
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Attack Mode:'))
+        self.modeCombo = QComboBox()
+        for name, val in [('Straight','0'),('Combination','1'),('Brute Force','3'),('Hybrid WL+Mask','6'),('Hybrid Mask+WL','7')]:
+            self.modeCombo.addItem(name, val)
+        hl.addWidget(self.modeCombo)
+        layout.addLayout(hl)
+        hl2 = QHBoxLayout()
+        hl2.addWidget(QLabel('Workload Profile:'))
+        self.workloadCombo = QComboBox()
+        for i in range(1,5):
+            self.workloadCombo.addItem(str(i), str(i))
+        hl2.addWidget(self.workloadCombo)
+        layout.addLayout(hl2)
+        self.optimizedCheck = QCheckBox('Use optimized kernel')
+        layout.addWidget(self.optimizedCheck)
+        self.cpuOnlyCheck = QCheckBox('CPU-only mode')
+        layout.addWidget(self.cpuOnlyCheck)
+        layout.addWidget(QLabel('Additional args:'))
+        self.extraArgsLine = QLineEdit()
+        self.extraArgsLine.setPlaceholderText('e.g. --session mysession --restore')
+        layout.addWidget(self.extraArgsLine)
+        page.setLayout(layout)
+        return page
+
     def create_summary_page(self):
         page = QWizardPage()
         page.setTitle('Summary and Run')
@@ -164,8 +194,8 @@ class HashcatWizard(QWizard):
     def on_page_changed(self, id):
         if id == 3:
             self.load_rules()
-        if id == 5:
-            summary = f"Hashcat: {self.exe_path}\nHash file: {self.hashLine.text()}\nWordlist: {self.wordLine.text()}\nRule: {self.ruleCombo.currentData()}\nOutput: {self.outputLine.text()}"
+        if id == 6:
+            summary = f"Hashcat: {self.exe_path}\nHash file: {self.hashLine.text()}\nWordlist: {self.wordLine.text()}\nRule: {self.ruleCombo.currentData()}\nOutput: {self.outputLine.text()}\nAttack Mode: {self.modeCombo.currentText()}\nWorkload: {self.workloadCombo.currentText()}\nOptimized: {'Yes' if self.optimizedCheck.isChecked() else 'No'}\nCPU only: {'Yes' if self.cpuOnlyCheck.isChecked() else 'No'}\nAdditional args: {self.extraArgsLine.text()}"
             self.summaryText.setPlainText(summary)
 
     def load_rules(self):
@@ -254,14 +284,20 @@ class HashcatWizard(QWizard):
         self.process.setProcessChannelMode(QProcess.MergedChannels)
         self.process.readyRead.connect(self.on_ready_read)
         self.process.finished.connect(self.on_finished)
-        mode = self.detect_hash_mode()
-        args = ['-a', '0']
-        if self.supports_optimized(mode):
+        mode = self.modeCombo.currentData()
+        args = ['-a', mode]
+        if self.optimizedCheck.isChecked():
             args += ['-O']
-        args += ['-w', '4', '-m', mode]
+        workload = self.workloadCombo.currentData()
+        args += ['-w', workload]
+        if self.cpuOnlyCheck.isChecked():
+            args += ['-D', '1']
         rule = self.ruleCombo.currentData()
         if rule:
             args += ['-r', rule]
+        extra = self.extraArgsLine.text().strip()
+        if extra:
+            args += extra.split()
         output = self.outputLine.text()
         if output:
             args += ['-o', output]
