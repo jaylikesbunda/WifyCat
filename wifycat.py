@@ -114,6 +114,16 @@ class HashcatWizard(QWizard):
         page = QWizardPage()
         page.setTitle('Attack Settings')
         layout = QVBoxLayout()
+        hl0 = QHBoxLayout()
+        hl0.addWidget(QLabel('Hash Mode:'))
+        self.hashModeCombo = QComboBox()
+        self.hashModeCombo.addItem('Auto-detect', '')
+        self.hashModeCombo.addItem('WPA/WPA2 (HCCAPX) 2500', '2500')
+        self.hashModeCombo.addItem('WPA3 (22000)', '22000')
+        self.hashModeCombo.addItem('MD5 (0)', '0')
+        self.hashModeCombo.addItem('SHA1 (100)', '100')
+        hl0.addWidget(self.hashModeCombo)
+        layout.addLayout(hl0)
         hl = QHBoxLayout()
         hl.addWidget(QLabel('Attack Mode:'))
         self.modeCombo = QComboBox()
@@ -195,7 +205,7 @@ class HashcatWizard(QWizard):
         if id == 3:
             self.load_rules()
         if id == 6:
-            summary = f"Hashcat: {self.exe_path}\nHash file: {self.hashLine.text()}\nWordlist: {self.wordLine.text()}\nRule: {self.ruleCombo.currentData()}\nOutput: {self.outputLine.text()}\nAttack Mode: {self.modeCombo.currentText()}\nWorkload: {self.workloadCombo.currentText()}\nOptimized: {'Yes' if self.optimizedCheck.isChecked() else 'No'}\nCPU only: {'Yes' if self.cpuOnlyCheck.isChecked() else 'No'}\nAdditional args: {self.extraArgsLine.text()}"
+            summary = f"Hashcat: {self.exe_path}\nHash Mode: {self.hashModeCombo.currentText()}\nHash file: {self.hashLine.text()}\nWordlist: {self.wordLine.text()}\nRule: {self.ruleCombo.currentData()}\nOutput: {self.outputLine.text()}\nAttack Mode: {self.modeCombo.currentText()}\nWorkload: {self.workloadCombo.currentText()}\nOptimized: {'Yes' if self.optimizedCheck.isChecked() else 'No'}\nCPU only: {'Yes' if self.cpuOnlyCheck.isChecked() else 'No'}\nAdditional args: {self.extraArgsLine.text()}"
             self.summaryText.setPlainText(summary)
 
     def load_rules(self):
@@ -292,6 +302,8 @@ class HashcatWizard(QWizard):
         args += ['-w', workload]
         if self.cpuOnlyCheck.isChecked():
             args += ['-D', '1']
+        hashmode = self.hashModeCombo.currentData() or self.detect_hash_mode()
+        args += ['-m', hashmode]
         rule = self.ruleCombo.currentData()
         if rule:
             args += ['-r', rule]
