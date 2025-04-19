@@ -5,6 +5,8 @@ import shutil
 import webbrowser
 import re
 from datetime import datetime
+import io
+import signal
 
 try:
     import requests
@@ -13,7 +15,6 @@ except ImportError:
     import requests
 
 import zipfile
-import io
 try:
     from PySide6.QtWidgets import QApplication, QWizard, QWizardPage, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QFileDialog, QTextEdit, QComboBox, QMessageBox, QProgressBar, QCheckBox
     from PySide6.QtGui import QPalette, QColor, QIcon
@@ -23,6 +24,12 @@ except ImportError:
     from PySide6.QtWidgets import QApplication, QWizard, QWizardPage, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QFileDialog, QTextEdit, QComboBox, QMessageBox, QProgressBar, QCheckBox
     from PySide6.QtGui import QPalette, QColor, QIcon
     from PySide6.QtCore import Qt, QProcess, QTimer
+
+try:
+    import psutil
+except ImportError:
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'psutil'])
+    import psutil
 
 HASHCAT_DOWNLOAD_PAGE = 'https://hashcat.net'
 
@@ -361,15 +368,25 @@ class HashcatWizard(QWizard):
 
     def pause_attack(self):
         if self.process and self.process.state() != QProcess.NotRunning:
-            self.process.write(b'p\r\n')
-            self.pauseButton.hide()
-            self.playButton.show()
+            pid = int(self.process.processId())
+            if os.name == 'nt':
+                psutil.Process(pid).suspend()
+            else:
+                os.kill(pid, signal.SIGSTOP)
+        self.pauseButton.hide()
+        self.playButton.show()
+        self.statusTimer.stop()
 
     def resume_attack(self):
         if self.process and self.process.state() != QProcess.NotRunning:
-            self.process.write(b'r\r\n')
-            self.playButton.hide()
-            self.pauseButton.show()
+            pid = int(self.process.processId())
+            if os.name == 'nt':
+                psutil.Process(pid).resume()
+            else:
+                os.kill(pid, signal.SIGCONT)
+        self.playButton.hide()
+        self.pauseButton.show()
+        self.statusTimer.start()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
