@@ -7,6 +7,7 @@ import re
 from datetime import datetime
 import io
 import signal
+import json
 
 try:
     import requests
@@ -34,11 +35,38 @@ except ImportError:
 HASHCAT_DOWNLOAD_PAGE = 'https://hashcat.net'
 
 class HashcatWizard(QWizard):
+    def config_path(self):
+        return os.path.join(os.path.expanduser('~'), '.wifycat_config.json')
+    def load_config(self):
+        try:
+            with open(self.config_path(), 'r') as f:
+                data = json.load(f)
+                path = data.get('exe_path')
+                if path and os.path.exists(path):
+                    self.exe_path = path
+                hf = data.get('hash_file')
+                self.hash_file = hf if hf and os.path.exists(hf) else ''
+                wf = data.get('wordlist_file')
+                self.wordlist_file = wf if wf and os.path.exists(wf) else ''
+        except:
+            pass
+    def save_config(self):
+        try:
+            with open(self.config_path(), 'w') as f:
+                json.dump({'exe_path': self.exe_path, 'hash_file': getattr(self, 'hash_file', ''), 'wordlist_file': getattr(self, 'wordlist_file', '')}, f)
+        except:
+            pass
+    def set_hashcat_path(self, path):
+        self.exe_path = path
+        self.hashcatPathLine.setText(path)
+        self.save_config()
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle('WifyCat')
         self.setWizardStyle(QWizard.ModernStyle)
         self.exe_path = None
+        self.load_config()
         self.setOption(QWizard.NoBackButtonOnLastPage, True)
         self.setOption(QWizard.NoCancelButtonOnLastPage, True)
         self.addPage(self.create_hashcat_page())
@@ -60,6 +88,8 @@ class HashcatWizard(QWizard):
         btnLocate.clicked.connect(self.locate_hashcat)
         self.hashcatPathLine = QLineEdit()
         self.hashcatPathLine.setReadOnly(True)
+        if self.exe_path:
+            self.hashcatPathLine.setText(self.exe_path)
         layout.addWidget(btnInstall)
         layout.addWidget(btnLocate)
         layout.addWidget(QLabel('Hashcat Executable Path:'))
@@ -72,6 +102,8 @@ class HashcatWizard(QWizard):
         page.setTitle('Select Hash File')
         layout = QHBoxLayout()
         self.hashLine = QLineEdit()
+        if getattr(self, 'hash_file', ''):
+            self.hashLine.setText(self.hash_file)
         btnBrowse = QPushButton('Browse')
         btnBrowse.clicked.connect(self.browse_hash)
         layout.addWidget(QLabel('Hash File:'))
@@ -85,6 +117,8 @@ class HashcatWizard(QWizard):
         page.setTitle('Select Wordlist')
         layout = QHBoxLayout()
         self.wordLine = QLineEdit()
+        if getattr(self, 'wordlist_file', ''):
+            self.wordLine.setText(self.wordlist_file)
         btnBrowse = QPushButton('Browse')
         btnBrowse.clicked.connect(self.browse_wordlist)
         layout.addWidget(QLabel('Wordlist:'))
@@ -109,6 +143,11 @@ class HashcatWizard(QWizard):
         page.setTitle('Select Output Destination')
         layout = QHBoxLayout()
         self.outputLine = QLineEdit()
+        if getattr(self, 'hash_file', ''):
+            name = os.path.splitext(os.path.basename(self.hash_file))[0]
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_output = os.path.join(os.path.dirname(self.hash_file), f"{name}_{ts}.txt")
+            self.outputLine.setText(default_output)
         btnBrowseOutput = QPushButton('Browse')
         btnBrowseOutput.clicked.connect(self.browse_output)
         layout.addWidget(QLabel('Output File:'))
@@ -191,13 +230,14 @@ class HashcatWizard(QWizard):
     def locate_hashcat(self):
         path, _ = QFileDialog.getOpenFileName(self, 'Locate hashcat.exe', '', 'Executable (hashcat.exe)')
         if path:
-            self.exe_path = path
-            self.hashcatPathLine.setText(path)
+            self.set_hashcat_path(path)
 
     def browse_hash(self):
         path, _ = QFileDialog.getOpenFileName(self, 'Select Hash File', '', 'All Files (*.*)')
         if path:
             self.hashLine.setText(path)
+            self.hash_file = path
+            self.save_config()
             name = os.path.splitext(os.path.basename(path))[0]
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             default_output = os.path.join(os.path.dirname(path), f"{name}_{ts}.txt")
@@ -208,6 +248,8 @@ class HashcatWizard(QWizard):
         path, _ = QFileDialog.getOpenFileName(self, 'Select Wordlist', '', 'Text Files (*.txt);;All Files (*.*)')
         if path:
             self.wordLine.setText(path)
+            self.wordlist_file = path
+            self.save_config()
             self.next()
 
     def browse_output(self):
