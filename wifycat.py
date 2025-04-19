@@ -157,6 +157,12 @@ class HashcatWizard(QWizard):
         self.summaryText.setReadOnly(True)
         self.runButton = QPushButton('Run Attack')
         self.runButton.clicked.connect(self.start_attack)
+        self.pauseButton = QPushButton('Pause')
+        self.pauseButton.clicked.connect(self.pause_attack)
+        self.pauseButton.hide()
+        self.playButton = QPushButton('Resume')
+        self.playButton.clicked.connect(self.resume_attack)
+        self.playButton.hide()
         self.progressBar = QProgressBar()
         self.progressBar.setRange(0, 100)
         self.progressBar.hide()
@@ -165,6 +171,8 @@ class HashcatWizard(QWizard):
         layout.addWidget(self.progressBar)
         layout.addWidget(self.etaLabel)
         layout.addWidget(self.runButton)
+        layout.addWidget(self.pauseButton)
+        layout.addWidget(self.playButton)
         page.setLayout(layout)
         page.setFinalPage(False)
         return page
@@ -287,6 +295,9 @@ class HashcatWizard(QWizard):
         if not self.exe_path:
             return
         self.runButton.setEnabled(False)
+        self.runButton.hide()
+        self.pauseButton.show()
+        self.playButton.hide()
         self.summaryText.clear()
         self.progressBar.show()
         self.process = QProcess(self)
@@ -337,6 +348,9 @@ class HashcatWizard(QWizard):
 
     def on_finished(self, exitCode, exitStatus):
         self.progressBar.hide()
+        self.pauseButton.hide()
+        self.playButton.hide()
+        self.runButton.show()
         self.runButton.setEnabled(True)
         self.summaryText.append(f"Finished with exit code {exitCode}")
         self.statusTimer.stop()
@@ -344,6 +358,18 @@ class HashcatWizard(QWizard):
     def send_status(self):
         if self.process.state() != QProcess.NotRunning:
             self.process.write(b"s\r\n")
+
+    def pause_attack(self):
+        if self.process and self.process.state() != QProcess.NotRunning:
+            self.process.write(b'p\r\n')
+            self.pauseButton.hide()
+            self.playButton.show()
+
+    def resume_attack(self):
+        if self.process and self.process.state() != QProcess.NotRunning:
+            self.process.write(b'r\r\n')
+            self.playButton.hide()
+            self.pauseButton.show()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
